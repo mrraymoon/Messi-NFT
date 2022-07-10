@@ -2,18 +2,23 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract MessiCollection is ERC721Enumerable, Ownable {
-    uint256 public _price = 0.01 ether;
+    using Counters for Counters.Counter;
+
+    uint256 public _price = 1 ether / 100;
 
     bool public _paused;
 
     uint256 public maxTokenIds = 13;
 
-    uint256 public tokenIds;
+    Counters.Counter public tokenIds;
 
     string _baseTokenURI;
+
+    event Mint(uint256 tokenId);
 
     //I learned that this is an importante feature if you want to prevent a security problem from escalating.
 
@@ -32,11 +37,14 @@ contract MessiCollection is ERC721Enumerable, Ownable {
         _baseTokenURI = baseURI;
     }
 
+    // mint a new token
     function mint() public payable onlyWhenNotPaused {
-        require(tokenIds < maxTokenIds, "Exceed maximum supply.");
+        require(tokenIds.current() + 1 < maxTokenIds, "Exceed maximum supply.");
         require(msg.value >= _price, "Ether sent is not enough.");
-        tokenIds += 1;
-        _safeMint(msg.sender, tokenIds);
+        
+        _safeMint(msg.sender, tokenIds.current());
+        emit Mint(tokenIds.current());
+        tokenIds.increment();        
     }
 
     // This function overrides the implementation from OZ, returning our _baseTokenURI instead.
@@ -44,14 +52,21 @@ contract MessiCollection is ERC721Enumerable, Ownable {
         return _baseTokenURI;
     }
 
+    // pause contract from executing transactions
     function setPaused(bool val) public onlyOwner {
         _paused = val;
+    }
+
+    // check balance of ether in contract
+    function contractBalance() public view onlyOwner returns (uint256) {
+        return address(this).balance;
     }
 
     // This function uses onlyOwner modifier and is useful to withdraw the ether obtained from minting.
     function withdraw() public onlyOwner {
         address _owner = owner();
         uint256 amount = address(this).balance;
+        require(address(this).balance > 0, "No ether available in contract");
         (bool sent, ) = _owner.call{value: amount}("");
         require(sent, "Failed to send Ether");
     }
